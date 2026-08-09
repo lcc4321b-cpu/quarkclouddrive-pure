@@ -22,8 +22,8 @@
 |---|---|---|
 | 每次命令前运行 installer | 是 | **否** |
 | 服务端选择 ZIP 并覆盖更新 | 是 | **禁用** |
-| `--session-input` 原始问题追踪 | Agent 强制 | **禁止且运行时忽略** |
-| session ID 服务质量追踪 | Agent 强制 | **禁止且运行时忽略** |
+| `--session-input` 原始问题追踪 | Agent 强制 | **移除** |
+| session ID 服务质量追踪 | Agent 强制 | **移除** |
 | command tracing / crash reporter | 启用代码路径 | **初始化禁用** |
 | OS machine ID | OAuth bootstrap 使用 | **不使用** |
 | 工作目录 | OAuth bootstrap 使用 | **不发送** |
@@ -38,19 +38,53 @@
 
 ## 安装
 
-要求 Node.js >= 16。
+要求：Python 3、Node.js >= 16。
+
+本仓库**不直接提交 478 KB 的生成后 bundled runtime**。原因是希望让安全修改可复现、可审查，而不是再发布一个新的大黑盒 bundle。
+
+先从官方 `quarkclouddrive v1.0.11` 包中取得：
+
+```text
+scripts/quark-drive.cjs
+```
+
+然后生成 Pure runtime：
+
+```bash
+python tools/patch_upstream.py \
+  /path/to/upstream/scripts/quark-drive.cjs \
+  scripts/quark-drive.cjs
+```
+
+成功时输出文件 SHA-256 必须为：
+
+```text
+5cc869dc1d367e9915efc66c8bb0f24d1a0a96c86502d92d358e357bff3992cc
+```
+
+再执行一次本地准备检查：
 
 ```bash
 bash scripts/install.sh
 ```
 
-这个安装脚本不会下载任何远程代码，也不会修改系统 Node.js。
+`install.sh` 不会联网下载代码、不使用 `sudo`、不修改系统 Node.js，也不会自动更新 Skill。
 
-然后由 Agent / Skill 直接调用：
+之后由 Agent / Skill 直接调用：
 
 ```bash
 node scripts/quark-drive.cjs <command> [options]
 ```
+
+## 为什么采用 patch-first 发布？
+
+它提供三件事：
+
+1. **固定输入**：只针对已审计的 v1.0.11；
+2. **显式 diff**：所有安全修改集中在 `tools/patch_upstream.py`；
+3. **确定输出**：Pure runtime 有固定 SHA-256，任何人都能独立复现。
+
+如果未来上游 bundle 的关键结构变化，补丁器会直接失败，而不是把旧补丁静默套到未知版本。
 
 ## 支持能力
 
@@ -70,26 +104,24 @@ node scripts/quark-drive.cjs <command> [options]
 
 本项目**不是“夸克完全看不到你的数据”的代理**。只要你使用夸克网盘，业务请求仍然需要到达夸克服务端。这个 fork 处理的是额外的客户端风险：原始 prompt tracking、client tracing、静默代码替换、过度的 Agent 行为限制等。
 
-详情：[`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)。
+完整审计：[`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)。
 
-## 可复现补丁
-
-上游审计包：
+## 上游固定版本
 
 ```text
 quarkclouddrive v1.0.11
-SHA-256 034ac1f3db416ae6435e111024961abd84b9d80a2e8e8093db72adf50b950f48
+Audited ZIP SHA-256:
+034ac1f3db416ae6435e111024961abd84b9d80a2e8e8093db72adf50b950f48
+
+Pure runtime SHA-256:
+5cc869dc1d367e9915efc66c8bb0f24d1a0a96c86502d92d358e357bff3992cc
 ```
 
-补丁逻辑在：
-
-```text
-tools/patch_upstream.py
-```
-
-它对关键代码位置做精确匹配并在版本不符时失败，避免对未来版本静默误补丁。
+更多 provenance 信息见 [`UPSTREAM.md`](UPSTREAM.md) 和 [`NOTICE.md`](NOTICE.md)。
 
 ## 验证
+
+生成 `scripts/quark-drive.cjs` 后：
 
 ```bash
 bash -n scripts/install.sh
@@ -98,6 +130,10 @@ node --check scripts/quark-drive.cjs
 node --check scripts/hash-worker.cjs
 python tests/static_checks.py
 ```
+
+## 小红书发布材料
+
+对应的技术内容发布稿保存在：[`docs/xiaohongshu-post.md`](docs/xiaohongshu-post.md)。
 
 ## License / provenance
 
