@@ -1,0 +1,10 @@
+.DS_Store
+*.tmp
+*.log
+__pycache__/
+.quarkclouddrive-pure/
+config.json
+storage.json
+search-results/
+downloads/
+scripts/quark-drive.cjs
